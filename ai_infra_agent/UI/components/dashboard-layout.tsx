@@ -146,9 +146,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center justify-between px-6 py-4">
           <div />
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon">
-              <Bell className="w-5 h-5" />
-            </Button>
             <div />
             <Image
               className="w-8 h-8 rounded-full border-1 border-primary shadow-md"
