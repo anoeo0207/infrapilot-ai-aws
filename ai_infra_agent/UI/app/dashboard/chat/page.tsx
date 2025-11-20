@@ -310,16 +310,6 @@ export default function ChatPage() {
                 className="flex-1"
               />
 
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={dryRunMode}
-                  onChange={(e) => setDryRunMode(e.target.checked)}
-                  className="w-4 h-4"
-                />
-                Dry Run
-              </label>
-
               <Button
                 type="submit"
                 disabled={loading || isExecuting || !input.trim() || status !== 'authenticated'}

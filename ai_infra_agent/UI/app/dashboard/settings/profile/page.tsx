@@ -1,64 +1,128 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, BadgeCheck } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useAvatar } from "@/app/provider";
+import { useSession } from "next-auth/react";
+import supabase from "@/lib/supabase/client";
+
+type ProfileState = {
+  fullName: string;
+  email: string;
+};
+
+const emptyProfile: ProfileState = {
+  fullName: "",
+  email: "",
+};
 
 export default function ProfileSettingsPage() {
-  const { profileImage, setProfileImage } = useAvatar();
+  const { data: session, status } = useSession();
+  const userId = (session?.user as { id?: string } | undefined)?.id;
 
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState({
-    fullName: "John Doe",
-    email: "john@example.com",
-    company: "Tech Company",
-    role: "DevOps Engineer",
-    bio: "Infrastructure automation specialist",
-  });
+  const [profile, setProfile] = useState<ProfileState>(emptyProfile);
+  const [persisted, setPersisted] = useState<ProfileState>(emptyProfile);
 
   const [isEditing, setIsEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  // LOAD PROFILE (KHÔNG CÓ AVATAR)
+  useEffect(() => {
+    if (status === "loading") return;
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      if (!userId || status !== "authenticated") {
+        if (isMounted) {
+          setProfile(emptyProfile);
+          setPersisted(emptyProfile);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("name, email")
+          .eq("id", userId)
+          .single();
+
+        if (!isMounted) return;
+
+        if (error && error.code !== "PGRST116") {
+          console.error("Failed to load profile:", error.message);
+          return;
+        }
+
+        const mapped: ProfileState = {
+          fullName: data?.name ?? "",
+          email: data?.email ?? "",
+        };
+
+        setProfile(mapped);
+        setPersisted(mapped);
+      } catch (e) {
+        console.error("Unexpected error:", e);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [status, userId]);
+
+  const hasChanges = JSON.stringify(profile) !== JSON.stringify(persisted);
+
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setProfile((prev) => ({ ...prev, [name]: value }));
     setSaved(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleSave = async () => {
+    if (!hasChanges || !userId) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPreviewImage(reader.result as string); // chỉ preview
+    const sanitized = {
+      name: profile.fullName.trim(),  // 🔥 FIXED
+      email: profile.email.trim(),
     };
-    reader.readAsDataURL(file);
-  };
 
-  const handleSave = () => {
-    // Lưu form và ảnh
-    if (previewImage) setProfileImage(previewImage);
+    const { error } = await supabase
+      .from("users")
+      .update(sanitized)
+      .eq("id", userId);
 
-    setSaved(true);
+    if (error) {
+      console.error("Failed to save profile:", error.message);
+      return;
+    }
+
+    const newPersisted: ProfileState = {
+      fullName: sanitized.name, // 🔥 FIXED
+      email: sanitized.email,
+    };
+
+    setProfile(newPersisted);
+    setPersisted(newPersisted);
+
     setIsEditing(false);
-    setPreviewImage(null);
-
+    setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
   const handleCancel = () => {
+    setProfile(persisted);
     setIsEditing(false);
-    setPreviewImage(null); // bỏ preview
   };
 
   return (
@@ -79,102 +143,62 @@ export default function ProfileSettingsPage() {
           </div>
         </div>
 
-        {/* Personal Information */}
         <Card className="p-6">
+          {/* Top */}
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Personal Information</h2>
-            <div className="flex gap-2">
-              {isEditing ? (
-                <>
-                  <Button variant="outline" size="sm" onClick={handleCancel}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={handleSave}>
-                    Save Changes
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditing(true)}
-                >
-                  Edit
-                </Button>
-              )}
+          </div>
+
+          {/* AVATAR + SILVER BADGE */}
+          <div className="flex justify-center mt-6 relative">
+            <div className="flex flex-col items-center relative">
+              <Image
+                className="w-28 h-28 rounded-full border border-primary shadow-md"
+                src="/logo/web-app-manifest-512x512.png"
+                alt="Avatar"
+                width={112}
+                height={112}
+              />
+
+              <div
+                className="absolute translate-y-2 px-3 py-1 rounded-full flex items-center gap-1 text-xs text-black font-medium"
+                style={{
+                  top: "100%",
+                  left: "60%",
+                  background:
+                    "linear-gradient(135deg, #e6e6e6, #bfbfbf, #d9d9d9)",
+                }}
+              >
+                <BadgeCheck className="w-3 h-3" />
+                Silver
+              </div>
             </div>
           </div>
 
-          {/* Avatar */}
-          <div className="flex items-center">
-            <div className="relative">
-              <Image
-                className="w-20 h-20 rounded-full border border-primary shadow-md"
-                src={previewImage || profileImage || "/favicon.ico"}
-                alt="Avatar"
-                width={80}
-                height={80}
-                priority
+          {/* FORM */}
+          <div className="space-y-4 mt-10">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Full Name</label>
+              <Input
+                name="fullName"
+                value={profile.fullName}
+                onChange={handleChange}
+                readOnly={!isEditing}
               />
             </div>
 
-            {isEditing && (
-              <div>
-                <input
-                  id="avatarUpload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
-                <Button
-                  variant="outline"
-                  className="gap-2 bg-transparent"
-                  onClick={() =>
-                    document.getElementById("avatarUpload")?.click()
-                  }
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload Photo
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Form */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {["fullName", "email", "company", "role"].map((field) => (
-                <div className="space-y-2" key={field}>
-                  <label className="text-sm font-medium">
-                    {field === "fullName"
-                      ? "Full Name"
-                      : field.charAt(0).toUpperCase() + field.slice(1)}
-                  </label>
-                  <Input
-                    name={field}
-                    value={(formData as any)[field]}
-                    onChange={handleChange}
-                    readOnly={!isEditing}
-                  />
-                </div>
-              ))}
-            </div>
-
             <div className="space-y-2">
-              <label className="text-sm font-medium">Bio</label>
-              <textarea
-                name="bio"
-                value={formData.bio}
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                name="email"
+                value={profile.email}
                 onChange={handleChange}
                 readOnly={!isEditing}
-                className="w-full px-3 py-2 rounded-md border border-border bg-background"
-                rows={4}
               />
             </div>
 
             {saved && (
-              <div className="p-3 rounded-md bg-green-500/10 text-green-700 dark:text-green-400 text-sm">
+              <div className="p-3 rounded-md bg-green-500/10 text-green-700 text-sm">
                 Changes saved successfully
               </div>
             )}

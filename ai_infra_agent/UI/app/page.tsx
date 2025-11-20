@@ -83,9 +83,9 @@ export default function Home() {
               },
               {
                 icon: Gauge,
-                title: "Dry-Run Mode",
+                title: "Rapid Planning",
                 description:
-                  "Preview changes before execution to ensure safety",
+                  "Generate a detailed execution plan in seconds",
               },
               {
                 icon: Zap,
@@ -105,20 +105,6 @@ export default function Home() {
                 </p>
               </div>
             ))}
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="px-6 py-16 border-t border-border">
-          <div className="max-w-2xl mx-auto text-center space-y-6">
-            <h2 className="text-3xl font-bold">Ready to automate?</h2>
-            <p className="text-muted-foreground">
-              Join teams already using AI to manage their infrastructure
-              efficiently and securely.
-            </p>
-            <Link href="/auth/signup">
-              <Button size="lg">Create Your Account</Button>
-            </Link>
           </div>
         </section>
 
